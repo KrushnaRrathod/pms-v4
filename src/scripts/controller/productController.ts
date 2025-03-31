@@ -68,6 +68,17 @@ export class ProductController {
 
     async searchData(query: string): Promise<void> {
         try {
+            if (query.trim() === '') {
+                // Fetch products again from both LocalStorage and API when search is cleared
+                const localProducts = StorageService.getProducts();
+                const apiProducts = await this.apiServices.fetchProducts();
+
+                this.allProducts = [...localProducts, ...apiProducts]; // Merge both sources
+                this.view.renderProducts(this.allProducts);
+                this.view.handleViewDetailsButton(this.allProducts);
+                return;
+            }
+
             const localFiltered = StorageService.getProducts().filter(
                 (product) =>
                     product.title.toLowerCase().includes(query.toLowerCase()) ||
@@ -88,15 +99,28 @@ export class ProductController {
     }
 
     attachSearchHandler(): void {
+        let lastQuery = ''; // Track last search query
+
         const debounceSearch = debounce((query: string) => {
-            this.searchData(query);
+            const trimmedQuery = query.trim(); // Remove spaces
+
+            if (trimmedQuery === '') {
+                if (lastQuery !== '') {
+                    // Only fetch when the last query was NOT empty
+                    console.log('Search cleared. Fetching all products...');
+                    this.fetchData();
+                }
+            } else if (trimmedQuery !== lastQuery) {
+                // Avoid duplicate calls
+                this.searchData(trimmedQuery);
+            }
+            lastQuery = trimmedQuery; // Update lastQuery
         }, 500);
 
         if (!this.searchBar) return;
 
         this.searchBar.addEventListener('input', (e) => {
             const query = (e.target as HTMLInputElement).value;
-            if (query.trim() == '') return;
             debounceSearch(query);
         });
     }
